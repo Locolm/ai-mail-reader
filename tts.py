@@ -1,98 +1,116 @@
 import pyttsx3
-import time
 from bs4 import BeautifulSoup
 import re
+import atexit
 
-def clean_text_for_tts(text):
-    """
-    Cleans text to remove incoherent blocks before sending to TTS.
-    Returns a cleaned string or an empty string if it's too incoherent.
-    """
-    # Define patterns for incoherent content
-    patterns = [
-        re.compile(r'[bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ]{5,}'), # 5+ consecutive consonants
-        re.compile(r'\d{10,}'), # 10+ consecutive digits (e.g., phone numbers, long IDs)
-        re.compile(r'[^\sa-zA-Z0-9]{5,}'), # 5+ consecutive special characters
-        re.compile(r'\S{40,}') # 40+ non-whitespace characters (long URLs, gibberish)
-    ]
+class TTS:
 
-    # Check for incoherent patterns
-    for pattern in patterns:
-        if pattern.search(text):
-            print(f"Skipping incoherent content: '{text}'")
-            return "Contenu non pertinent."
+    def __init__(self, preference = "hortense", log_tts=True, print_text=True):
+        self.engine = pyttsx3.init()
+        self.preference = preference
+        self.print_text = True  # Set to True to print text being read
+        self.log_tts = True   # Set to True to log TTS events
+        self.set_voice(preference)
+        atexit.register(self.stop_engine)
 
-    return text
+    def stop_engine(self):
+        """Stop the TTS engine gracefully on exit"""
+        try:
+            self.engine.stop()
+            print("\n[TTS] Engine TTS stopped.")
+        except:
+            pass
 
-def say(text, preference = "hortense", print_text=True):
-        
-    engine = pyttsx3.init()
-    
-    # voice selection
-    voices = engine.getProperty('voices')
-    voice_id = None
-    for voice in voices:
-        # Check if the voice is a female voice (this depends on the system's voice naming conventions)
-        if preference in voice.name.lower():
-            voice_id = voice.id
-            break
-    
-    # If a female voice is found, set it
-    if voice_id:
-        engine.setProperty('voice', voice_id)
-    else:
-        print("No voice found. Using default voice.")
-        
-    is_html = bool(re.search(r'<[^>]+>', text))
-    if is_html:
-        # Parse HTML
-        soup = BeautifulSoup(text, 'html.parser')
-        
-        # Extract text
-        elements = soup.find_all(['p', 'div', 'h1', 'h2', 'h3', 'ul', 'li', 'img'])
-        
-        if not elements:
-            text_to_say = soup.get_text(separator=' ', strip=True)
-            if print_text:
-                print(text_to_say)
-            engine.say(text_to_say)
-            engine.runAndWait()
+    def set_voice(self, preference):
+        # ... (Logique inchangée)
+        voices = self.engine.getProperty('voices')
+        voice_id = None
+        for voice in voices:
+            if preference.lower() in voice.name.lower():
+                voice_id = voice.id
+                break
+        if voice_id:
+             self.engine.setProperty('voice', voice_id)
+             if self.log_tts:
+                print(f"[TTS] voice changed to: {self.engine.getProperty('voice')}")
         else:
-            for element in elements:
-                # image handling
-                if element.name == 'img' and element.get('alt'):
-                    img_description = f"Image: {element['alt']}"
-                    if print_text:
-                        print(img_description)
-                    engine.say(img_description)
-                    engine.runAndWait()
-                    time.sleep(0.5)
+            if self.log_tts:
+                print(f"[TTS] No voice matching '{preference}' found. voice is set by default.")
+        
+    def clean_text_for_tts(self, text):
+        """Clean text to avoid reading gibberish or unwanted patterns."""
+        patterns = [
+            re.compile(r'[bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ]{5,}'),
+            re.compile(r'[^\sa-zA-Z0-9]{5,}'),
+            re.compile(r'\S{40,}')
+        ]
+        for pattern in patterns:
+            if pattern.search(text):
+                if self.log_tts:
+                    print(f"Skipping incoherent content: '{text}'")
+                return ""
+        return text
+
+
+    def say(self, text,is_html=False):
+        """
+        Read the provided text using TTS. True if something was read, False otherwise.
+        """
+        if is_html:
+            text_blocks_to_queue = []
+            processed_blocks = set()
+            soup = BeautifulSoup(text, 'html.parser')
+            elements = soup.find_all(['p', 'div', 'h1', 'h2', 'h3', 'ul', 'li', 'img'])
+            if not elements:
+                block_to_say = soup.get_text(separator=' ', strip=True)
+                if self.print_text:
+                    print(block_to_say)
+                if block_to_say:
+                    cleaned_text = self.clean_text_for_tts(block_to_say)
+                    if cleaned_text and cleaned_text not in processed_blocks:
+                        text_blocks_to_queue.append(cleaned_text)
+                        processed_blocks.add(cleaned_text)
+            else:
+                for element in elements:
+                    block_to_say = ""
                     
-                else:
-                    block_text = element.get_text(separator=' ', strip=True)
-                    if block_text:
-                        if print_text:
-                            print(block_text)
-                        engine.say(block_text)
-                        engine.runAndWait()
-                        time.sleep(0.5) # pause beetween blocks
+                    if element.name == 'img':
+                        alt_text = element.get('alt')
+                        is_tracking_pixel = (alt_text == "") or (element.get('width') == '1' and element.get('height') == '1')
+                        if not is_tracking_pixel and alt_text:
+                            block_to_say = f"description d'une image: {alt_text}"
+                    else:
+                        block_to_say = element.get_text(separator=' ', strip=True)
 
-    else:
-        # it's not html
-        if print_text:
-            print(text)
-        engine.say(text)
-        engine.runAndWait()
-    
-def list_voices():
-    """Prints all available voices on the system."""
-    engine = pyttsx3.init()
-    voices = engine.getProperty('voices')
-    print("Available voices:")
-    for i, voice in enumerate(voices):
-        print(f"  Voice {i}: ID={voice.id}, Name='{voice.name}'")
+                if block_to_say:
+                    cleaned_text = self.clean_text_for_tts(block_to_say)
+                    if cleaned_text and cleaned_text not in processed_blocks:
+                        text_blocks_to_queue.append(cleaned_text)
+                        processed_blocks.add(cleaned_text)
 
+            final_text = ", ".join(text_blocks_to_queue)
+        else:
+            final_text = self.clean_text_for_tts(text)
+        
+        if final_text:
+            if self.log_tts:
+                print(f"[TTS] Reading: {final_text}")
+            
+            # BLOQUE L'EXÉCUTION JUSQU'À LA FIN DE LA LECTURE
+            self.engine.say(final_text)
+            self.engine.runAndWait() 
+            return True
+        return False
+
+    def list_voices(self):
+        """Prints all available voices on the system."""
+        voices = self.engine.getProperty('voices')
+        print("Available voices:")
+        for i, voice in enumerate(voices):
+            print(f" Voice {i}: ID={voice.id}, Name='{voice.name}'")
+        
 if __name__ == "__main__":
-    list_voices()
-    say("Bonjour, je suis prêt à lire vos emails")
+    TTS_instance = TTS(preference="hortense")
+    TTS_instance.list_voices()
+    TTS_instance.say("Bonjour, je suis prêt à lire vos emails")
     print("TTS test completed.")

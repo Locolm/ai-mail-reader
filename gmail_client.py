@@ -2,13 +2,14 @@ from __future__ import print_function
 import os.path
 import base64
 import re
+import time
 
 from bs4 import BeautifulSoup
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from tts import say
+from tts import TTS
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 
@@ -139,39 +140,75 @@ def list_unread_conversations():
         if not page_token:
             break
 
+def read_messages(tts_instance, unread_conversations):
+    
+    conversations = list(unread_conversations)
+    if not conversations:
+        tts_instance.say("Aucune conversation non lue à lire.")
+        return
+
+    conv_index = 0 # Index de la conversation en cours
+    msg_index = 0  # Index du message dans la conversation
+
+    while conv_index < len(conversations):
+        conv = conversations[conv_index]
+        current_messages = conv["messages"]
+        
+        metadata_blocks = [
+            f"Conversation {conv_index + 1} sur {len(conversations)}.",
+            f"Expéditeur: {conv['first_message_from']}",
+            f"Sujet: {conv['subject']}",
+            f"Contient {len(current_messages)} messages."
+        ]
+
+        tts_instance.say(", ".join(metadata_blocks))
+        
+        while msg_index < len(current_messages):
+            
+            msg_data = current_messages[msg_index]
+            
+            msg_header = f"Message {msg_index + 1} sur {len(current_messages)}. De: {msg_data['from']}"
+            tts_instance.say(msg_header)
+            
+            content_read = tts_instance.say(msg_data.get("content", ""), is_html=True)
+            if not content_read:
+                 tts_instance.say("Contenu du message introuvable ou non pertinent.")
+
+            command = input("\n[Commande] Taper (n) pour suivant, (p) pour précédent, (c) pour conversation suivante, (q) pour quitter: ").lower().strip()
+            
+            if command == 'q':
+                print("Arrêt de la lecture.")
+                return
+            elif command == 'n':
+                msg_index += 1 # Message suivant
+            elif command == 'p':
+                msg_index = max(0, msg_index - 1) # Message précédent
+            elif command == 'c':
+                break # Sort de la boucle des messages pour passer à la conversation suivante
+            else:
+                tts_instance.say("Commande non reconnue. Lecture du message suivant.")
+                msg_index += 1
+
+        if msg_index >= len(current_messages):
+            conv_index += 1
+            msg_index = 0
+
+    tts_instance.say("Fin de toutes les conversations non lues.")
+
+
 if __name__ == "__main__":
     try:
+        TTS_instance = TTS(preference="hortense")
+        
         unread_count = count_exact_unread_conversations()
-        say(f"Vous avez {unread_count} conversations non lues.")
-        print("-" * 30)
-
-        print("Liste des conversations non lues:")
-        mails_generator = list_unread_conversations()
-        for conv in mails_generator:
-            try:
-                print("-" * 15)
-                print(f"Conversation ID: {conv["id"]}")
-                say(f"Expéditeur du premier message: {conv["first_message_from"]}")
-                say(f"Sujet: {conv["subject"]}")
-                say(f"Nombre de messages dans la conversation: {len(conv["messages"])}")
-                
-                for i, message_data in enumerate(conv["messages"]):
-                    try:
-                        print(f"--- Message {i+1} ---")
-                        say(f"Message {i+1}.")
-                        
-                        message_content = message_data.get("content", "")
-                        if message_content:
-                            say(f"Contenu: {message_content}...")
-                        else:
-                            say("Contenu du message introuvable.")
-                        print("-" * 15)   
-                    except KeyboardInterrupt:
-                        print("\nmessage ignoré.")
-    
-            except KeyboardInterrupt:
-                print("\nConversation ignorée.")
+        
+        TTS_instance.say(f"Bonjour. Vous avez {unread_count} conversations non lues.")
+        
+        if unread_count > 0:
+            unread_conversations = list_unread_conversations()
+            read_messages(TTS_instance, unread_conversations)
+        
     except KeyboardInterrupt:
-        print("\nArrêt du programme.")  
+        print("\nArrêt du programme.") 
     except Exception as e:
         print(f"Une erreur s'est produite: {e}")
