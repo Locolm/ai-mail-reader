@@ -10,6 +10,10 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from tts import TTS
+import logging
+
+logging.getLogger("comtypes").setLevel(logging.CRITICAL)
+
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 
@@ -172,7 +176,7 @@ def read_messages(tts_instance, unread_conversations):
             
             content_read = tts_instance.say(msg_data.get("content", ""), is_html=True)
             if not content_read:
-                 tts_instance.say("Contenu du message introuvable ou non pertinent.")
+                tts_instance.say("Contenu du message introuvable ou non pertinent.")
 
             command = input("\n[Commande] Taper (n) pour suivant, (p) pour précédent, (c) pour conversation suivante, (q) pour quitter: ").lower().strip()
             

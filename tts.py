@@ -1,8 +1,6 @@
-import threading
 import pyttsx3
 from bs4 import BeautifulSoup
 import re
-import atexit
 
 class TTS:
 
