@@ -1,3 +1,4 @@
+import threading
 import pyttsx3
 from bs4 import BeautifulSoup
 import re
@@ -5,37 +6,20 @@ import atexit
 
 class TTS:
 
-    def __init__(self, preference = "hortense", log_tts=True, print_text=True):
-        self.engine = pyttsx3.init()
+    def __init__(self, preference = "hortense", log_tts=True):
         self.preference = preference
-        self.print_text = True  # Set to True to print text being read
-        self.log_tts = True   # Set to True to log TTS events
-        self.set_voice(preference)
-        atexit.register(self.stop_engine)
-
-    def stop_engine(self):
-        """Stop the TTS engine gracefully on exit"""
-        try:
-            self.engine.stop()
-            print("\n[TTS] Engine TTS stopped.")
-        except:
-            pass
-
-    def set_voice(self, preference):
-        # ... (Logique inchangée)
-        voices = self.engine.getProperty('voices')
-        voice_id = None
+        self.log_tts = log_tts
+    
+    def speak(self, text):
+        engine = pyttsx3.init()
+        voices = engine.getProperty('voices')
         for voice in voices:
-            if preference.lower() in voice.name.lower():
-                voice_id = voice.id
-                break
-        if voice_id:
-             self.engine.setProperty('voice', voice_id)
-             if self.log_tts:
-                print(f"[TTS] voice changed to: {self.engine.getProperty('voice')}")
-        else:
-            if self.log_tts:
-                print(f"[TTS] No voice matching '{preference}' found. voice is set by default.")
+            if self.preference.lower() in voice.name.lower():
+                engine.setProperty('voice', voice.id)
+                break        
+        engine.say(text)
+        engine.runAndWait()
+        engine.stop()
         
     def clean_text_for_tts(self, text):
         """Clean text to avoid reading gibberish or unwanted patterns."""
@@ -63,8 +47,6 @@ class TTS:
             elements = soup.find_all(['p', 'div', 'h1', 'h2', 'h3', 'ul', 'li', 'img'])
             if not elements:
                 block_to_say = soup.get_text(separator=' ', strip=True)
-                if self.print_text:
-                    print(block_to_say)
                 if block_to_say:
                     cleaned_text = self.clean_text_for_tts(block_to_say)
                     if cleaned_text and cleaned_text not in processed_blocks:
@@ -95,16 +77,15 @@ class TTS:
         if final_text:
             if self.log_tts:
                 print(f"[TTS] Reading: {final_text}")
-            
-            # BLOQUE L'EXÉCUTION JUSQU'À LA FIN DE LA LECTURE
-            self.engine.say(final_text)
-            self.engine.runAndWait() 
+            self.speak(final_text)
             return True
         return False
 
     def list_voices(self):
         """Prints all available voices on the system."""
-        voices = self.engine.getProperty('voices')
+        engine = pyttsx3.init()
+        voices = engine.getProperty('voices')
+        engine.stop()
         print("Available voices:")
         for i, voice in enumerate(voices):
             print(f" Voice {i}: ID={voice.id}, Name='{voice.name}'")
@@ -113,4 +94,7 @@ if __name__ == "__main__":
     TTS_instance = TTS(preference="hortense")
     TTS_instance.list_voices()
     TTS_instance.say("Bonjour, je suis prêt à lire vos emails")
+    TTS_instance.say("j'attends")
+    TTS_instance.say("Si je dis ces mots c'est que tout fonctionne correctement.")
+    
     print("TTS test completed.")
