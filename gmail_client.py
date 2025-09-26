@@ -1,16 +1,15 @@
 from __future__ import print_function
 import os.path
 import base64
-import re
-import time
 
-from bs4 import BeautifulSoup
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from tts import TTS
 import logging
+
+from voice import voice_input
 
 logging.getLogger("comtypes").setLevel(logging.CRITICAL)
 
@@ -144,7 +143,7 @@ def list_unread_conversations():
         if not page_token:
             break
 
-def read_messages(tts_instance, unread_conversations):
+def read_messages(tts_instance, unread_conversations, voice = True):
     
     conversations = list(unread_conversations)
     if not conversations:
@@ -178,7 +177,21 @@ def read_messages(tts_instance, unread_conversations):
             if not content_read:
                 tts_instance.say("Contenu du message introuvable ou non pertinent.")
 
-            command = input("\n[Commande] Taper (n) pour suivant, (p) pour précédent, (c) pour conversation suivante, (q) pour quitter: ").lower().strip()
+            if not voice:
+                command = input("\n[Commande] Taper (n) pour suivant, (p) pour précédent, (c) pour conversation suivante, (q) pour quitter: ").lower().strip()
+            else :
+                tts_instance.say("Dites 'suivant', 'précédent', 'conversation suivante' ou 'quitter'.")
+                command = voice_input(prompt="Votre commande...").lower().strip()
+                if "suivant" in command:
+                    command = 'n'
+                elif "précédent" in command:
+                    command = 'p'
+                elif "conversation suivante" in command:
+                    command = 'c'
+                elif "quitter" in command:
+                    command = 'q'
+                else:
+                    command = ''
             
             if command == 'q':
                 print("Arrêt de la lecture.")
