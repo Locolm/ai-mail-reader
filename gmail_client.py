@@ -402,7 +402,38 @@ def get_command(voice: bool, type: int = 1, tts_instance=None) -> str:
                 return key  
     return ""
 
+def get_unread_filtered(subject=None, sender=None, date=None):
+    """
+    Returns a list of unread conversations filtered by subject, sender, or date.
+    Parameters can be partial and case-insensitive.
+    """
+    filtered = []
+    for item in list_unread_titles():
+        match = True
+        if subject and subject.lower() not in item.get("subject", "").lower():
+            match = False
+        if sender and sender.lower() not in item.get("from", "").lower():
+            match = False
+        if date and date.lower() not in item.get("date", "").lower():
+            match = False
+        if match:
+            filtered.append(item)
+    return filtered
 
+def send_message(to, subject, body):
+    pass
+
+def respond_to_message(message_id):
+    pass
+
+def delete_message(message_id):
+    pass
+
+def delete_conversation(thread_id):
+    pass
+
+def mark_as_unread(message_id):
+    pass
 
 if __name__ == "__main__":
     try:
