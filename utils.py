@@ -1,5 +1,6 @@
 import base64
 import datetime
+import re
 
 @staticmethod
 def get_part_content(part):
@@ -54,3 +55,39 @@ def format_gmail_date(date_str: str = None, internal_date: str = None) -> str:
 
     except Exception:
         return ""
+
+
+@staticmethod
+def normalize_email(spoken_email: str) -> str:
+    """
+    Converts spoken email formats into standard email addresses.
+    Ex: "o c m 34 gmail point com" -> "ocm34@gmail.com"
+    """
+    if not spoken_email:
+        return ""
+
+    # Mise en minuscule et suppression des espaces superflus
+    email = spoken_email.lower().strip()
+
+    # Remplacer les mots courants
+    replacements = {
+        " arobase ": "@",
+        " at ": "@",
+        " point ": ".",
+        " dot ": ".",
+        " espace ": "",
+        " tiret ": "-",
+        " underscore ": "_",
+    }
+
+    for word, repl in replacements.items():
+        email = email.replace(word, repl)
+
+    # Supprimer espaces restants
+    email = email.replace(" ", "")
+
+    # Vérification simple du format
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+        return None  # ou lever une exception
+
+    return email

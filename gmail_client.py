@@ -1,4 +1,5 @@
 from __future__ import print_function
+from email.mime.text import MIMEText
 import os.path
 import base64
 import traceback
@@ -278,6 +279,9 @@ class gmailClient:
                         if command == 'q':
                             print("Arrêt de la lecture.")
                             return
+                        elif command == 'a':
+                            self.send_message(to=msg.get('from', None),subject=f"Re: {msg.get('subject',None)}", thread_id=conv.get('id', None))
+                            msg_index += 1
                         elif command == 'n':
                             msg_index += 1
                         elif command == 'p':
@@ -312,9 +316,57 @@ class gmailClient:
                 filtered.append(item)
         return filtered
 
-    def send_message(self, to, subject, body):
-        pass
+    def send_message(self, to=None, subject=None, body=None, thread_id=None):
+        """Send an email via Gmail API."""
+        try:
+            if not to:
+                to = self.input_system.input_and_validate(
+                    initial_prompt = "A qui voulez vous envoyer ce mail ?", 
+                    validation_prompt = "validez vous le destinataire ?",
+                    fallback_prompt = "Adresse e-mail invalide. Veuillez réessayer avec le clavier."
+                    )
+                to = utils.normalize_email(to)
+            if not subject:
+                subject = self.input_system.input_and_validate(
+                    initial_prompt = "Quel est le sujet du mail ?", 
+                    validation_prompt = "validez vous ce sujet ?",
+                    fallback_prompt = "sujet invalidé. Veuillez réessayer.",
+                    type = 1
+                    )
+            if not body:
+                body = self.input_system.input_and_validate(
+                    initial_prompt = "Quel est le contenu du mail ?", 
+                    validation_prompt = "validez vous ce contenu ?",
+                    fallback_prompt = "contenu invalidé. Veuillez réessayer.",
+                    type = 1
+                    )
+                
+            message = MIMEText(body, "plain", "utf-8")
+            message["to"] = to
+            message["subject"] = subject
+            
+            
+            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
+            if thread_id:
+                message_body = {"raw": raw_message,
+                            "threadId": thread_id
+                            }
+            else:
+                message_body = {"raw": raw_message}
+            
+            sent_message = self.service.users().messages().send(
+                userId="me", 
+                body=message_body
+            ).execute()
 
+            self.tts_instance.say(f"Message envoyé à {to} avec le sujet {subject}.")
+            print(f"(ID: {sent_message['id']})")
+            return sent_message
+        except Exception as e:
+            self.tts_instance.say(f"Erreur lors de l’envoi du mail: {e}")
+            traceback.print_exc()
+        
+        
     def respond_to_message(self, message_id):
         pass
 
@@ -333,6 +385,8 @@ if __name__ == "__main__":
         
         gmail_client_instance = gmailClient(tts_instance=tts_instance, voice=True)
         
+        # gmail_client_instance.send_message(to="locolm.kl34@gmail.com", subject="Test depuis l'API Gmail")
+        
         unread_count = gmail_client_instance.count_exact_unread_conversations()
         
         tts_instance.say(f"Bonjour. Vous avez {unread_count} conversations non lues.")
@@ -341,7 +395,7 @@ if __name__ == "__main__":
             unread = gmail_client_instance.list_unread_conversations()
             gmail_client_instance.read_messages(unread)
             
-            # mark all conversations as read
+            # # mark all conversations as read
             # unread = gmail_client_instance.list_unread_titles()
             # gmail_client_instance.mark_all_unread_as_read(unread)
         
